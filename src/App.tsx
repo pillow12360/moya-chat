@@ -1,9 +1,12 @@
+
 import { useState } from 'react'
-import ChatList from './components/ChatList.tsx'
+import ChatList from './components/ChatList'
 import ChatRoom from './components/ChatRoom'
+import { ChatRoomInfo } from './types/chat'
 
 function App() {
-    const [selectedRoom, setSelectedRoom] = useState<string | null>(null);
+    // string | null 에서 ChatRoomInfo | null로 변경
+    const [selectedRoom, setSelectedRoom] = useState<ChatRoomInfo | null>(null);
     const [username, setUsername] = useState<string>('');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
 
@@ -37,13 +40,15 @@ function App() {
         <div className="min-h-screen bg-gray-100">
             {selectedRoom ? (
                 <ChatRoom
-                    roomId={selectedRoom}
+                    roomId={selectedRoom.roomId}
+                    roomInfo={selectedRoom}
                     username={username}
                     onExit={() => setSelectedRoom(null)}
                 />
             ) : (
                 <ChatList
-                    onRoomSelect={setSelectedRoom}
+                    // ChatList의 onRoomSelect prop 타입에 맞게 수정
+                    onRoomSelect={(_, roomInfo: ChatRoomInfo) => setSelectedRoom(roomInfo)}
                     username={username}
                 />
             )}

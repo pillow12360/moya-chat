@@ -1,24 +1,35 @@
 // types/chat.ts
-export enum MessageType {
-    ENTER = 'ENTER',
-    TALK = 'TALK',
-    LEAVE = 'LEAVE'
+export interface ChatRoomInfo {
+    roomId: string;
+    roomName: string;
+    userCount: number;
+    type: "TEXT";
+    userList: {
+        [key: string]: string;
+    }
 }
 
 export interface ChatMessage {
-    type: MessageType;
+    type: 'JOIN' | 'TALK' | 'LEAVE';
     roomId: string;
     sender: string;
     message: string;
-    time: string;
+    timestamp: string;
 }
 
-export interface Room {
+export interface ChatRoomProps {
     roomId: string;
-    name: string;
+    roomInfo: ChatRoomInfo;
+    username: string;
+    onExit: () => void;
 }
 
-export interface User {
+export interface ChatListProps {
+    onRoomSelect: (roomId: string, roomInfo: ChatRoomInfo) => void;
     username: string;
-    isActive: boolean;
+}
+
+export interface CreateRoomRequest {
+    roomName: string;
+    type: "TEXT";
 }
