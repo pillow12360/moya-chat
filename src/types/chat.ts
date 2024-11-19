@@ -3,18 +3,31 @@ export interface ChatRoomInfo {
     roomId: string;
     roomName: string;
     userCount: number;
-    type: "TEXT";
-    userList: {
-        [key: string]: string;
-    }
+    type: string;
+    userList: Record<string, string>;
+}
+
+export interface CreateRoomRequest {
+    roomName: string;
+}
+
+export enum MessageType {
+    JOIN = 'JOIN',
+    CHAT = 'CHAT',
+    LEAVE = 'LEAVE'
 }
 
 export interface ChatMessage {
-    type: 'JOIN' | 'TALK' | 'LEAVE';
+    type: MessageType;
     roomId: string;
     sender: string;
     message: string;
-    timestamp: string;
+    timestamp: string;  // ISO string format
+}
+
+export interface ChatListProps {
+    onRoomSelect: (roomInfo: ChatRoomInfo) => void;  // 수정된 부분
+    username: string;
 }
 
 export interface ChatRoomProps {
@@ -22,14 +35,4 @@ export interface ChatRoomProps {
     roomInfo: ChatRoomInfo;
     username: string;
     onExit: () => void;
-}
-
-export interface ChatListProps {
-    onRoomSelect: (roomId: string, roomInfo: ChatRoomInfo) => void;
-    username: string;
-}
-
-export interface CreateRoomRequest {
-    roomName: string;
-    type: "TEXT";
 }

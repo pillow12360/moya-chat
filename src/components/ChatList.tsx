@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ChatRoomInfo, ChatListProps, CreateRoomRequest } from '../types/chat';
 import { CHAT_API } from '../config/apiConfig';
 
-const ChatList: React.FC<ChatListProps> = ({ onRoomSelect, username }) => {
+const ChatList: React.FC<ChatListProps> = ({ onRoomSelect }) => {
     const [rooms, setRooms] = useState<ChatRoomInfo[]>([]);
     const [newRoomName, setNewRoomName] = useState('');
     const [isCreatingRoom, setIsCreatingRoom] = useState(false);
@@ -12,17 +12,7 @@ const ChatList: React.FC<ChatListProps> = ({ onRoomSelect, username }) => {
 
     const fetchRooms = async () => {
         try {
-            const response = await fetch(CHAT_API.getAllRooms, {
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = await CHAT_API.getAllRooms();
             console.log('Fetched rooms:', data);
             setRooms(data);
             setError(null);
@@ -39,23 +29,9 @@ const ChatList: React.FC<ChatListProps> = ({ onRoomSelect, username }) => {
         try {
             const createRoomRequest: CreateRoomRequest = {
                 roomName: newRoomName,
-                type: "TEXT"
             };
 
-            const response = await fetch(CHAT_API.createRoom, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify(createRoomRequest)
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const newRoom: ChatRoomInfo = await response.json();
+            const newRoom = await CHAT_API.createRoom(createRoomRequest);
             console.log('Created room:', newRoom);
 
             await fetchRooms();
@@ -73,34 +49,10 @@ const ChatList: React.FC<ChatListProps> = ({ onRoomSelect, username }) => {
     const handleJoinRoom = async (roomId: string) => {
         setLoading(true);
         try {
-            // 1. 방 정보 조회
-            const roomInfoResponse = await fetch(CHAT_API.getRoom(roomId), {
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-
-            if (!roomInfoResponse.ok) {
-                throw new Error('방 정보를 찾을 수 없습니다.');
-            }
-
-            const roomInfo: ChatRoomInfo = await roomInfoResponse.json();
+            const roomInfo = await CHAT_API.getRoom(roomId);
             console.log('Room info:', roomInfo);
 
-            // 2. 방 참여 요청
-            const joinResponse = await fetch(CHAT_API.addUserToRoom(roomId), {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ userName: username })
-            });
-
-            if (!joinResponse.ok) {
-                throw new Error('방 참여에 실패했습니다.');
-            }
-
-            onRoomSelect(roomId, roomInfo);
+            onRoomSelect(roomInfo);
             setError(null);
         } catch (error) {
             console.error('Failed to join room:', error);
@@ -144,6 +96,11 @@ const ChatList: React.FC<ChatListProps> = ({ onRoomSelect, username }) => {
                         placeholder="방 이름을 입력하세요"
                         className="w-full mb-2 p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                         disabled={loading}
+                        onKeyPress={(e) => {
+                            if (e.key === 'Enter' && newRoomName.trim()) {
+                                handleCreateRoom();
+                            }
+                        }}
                     />
                     <div className="flex space-x-2">
                         <button
@@ -167,7 +124,7 @@ const ChatList: React.FC<ChatListProps> = ({ onRoomSelect, username }) => {
                 </div>
             )}
 
-            {loading && (
+            {loading && !isCreatingRoom && (
                 <div className="text-center py-4 text-gray-600">
                     로딩 중...
                 </div>

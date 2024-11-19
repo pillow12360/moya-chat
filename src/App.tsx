@@ -1,14 +1,39 @@
-
-import { useState } from 'react'
-import ChatList from './components/ChatList'
-import ChatRoom from './components/ChatRoom'
-import { ChatRoomInfo } from './types/chat'
+// App.tsx
+import { useState, useEffect } from 'react';
+import ChatList from './components/ChatList';
+import ChatRoom from './components/ChatRoom';
+import { ChatRoomInfo } from './types/chat';
 
 function App() {
-    // string | null 에서 ChatRoomInfo | null로 변경
     const [selectedRoom, setSelectedRoom] = useState<ChatRoomInfo | null>(null);
     const [username, setUsername] = useState<string>('');
     const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+    // 로컬 스토리지에서 사용자 정보 복구
+    useEffect(() => {
+        const savedUsername = localStorage.getItem('chat_username');
+        if (savedUsername) {
+            setUsername(savedUsername);
+            setIsLoggedIn(true);
+        }
+    }, []);
+
+    const handleLogin = () => {
+        if (username.trim()) {
+            setIsLoggedIn(true);
+            localStorage.setItem('chat_username', username);
+        }
+    };
+
+    const handleRoomSelect = (roomInfo: ChatRoomInfo) => {
+        console.log('Selecting room:', roomInfo);
+        setSelectedRoom(roomInfo);
+    };
+
+    const handleRoomExit = () => {
+        console.log('Exiting room');
+        setSelectedRoom(null);
+    };
 
     if (!isLoggedIn) {
         return (
@@ -21,10 +46,15 @@ function App() {
                             placeholder="닉네임을 입력하세요"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
+                            onKeyPress={(e) => {
+                                if (e.key === 'Enter' && username.trim()) {
+                                    handleLogin();
+                                }
+                            }}
                             className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <button
-                            onClick={() => setIsLoggedIn(true)}
+                            onClick={handleLogin}
                             disabled={!username.trim()}
                             className="w-full bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors disabled:bg-gray-300"
                         >
@@ -40,15 +70,15 @@ function App() {
         <div className="min-h-screen bg-gray-100">
             {selectedRoom ? (
                 <ChatRoom
+                    key={selectedRoom.roomId}
                     roomId={selectedRoom.roomId}
                     roomInfo={selectedRoom}
                     username={username}
-                    onExit={() => setSelectedRoom(null)}
+                    onExit={handleRoomExit}
                 />
             ) : (
                 <ChatList
-                    // ChatList의 onRoomSelect prop 타입에 맞게 수정
-                    onRoomSelect={(_, roomInfo: ChatRoomInfo) => setSelectedRoom(roomInfo)}
+                    onRoomSelect={handleRoomSelect}
                     username={username}
                 />
             )}

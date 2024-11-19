@@ -1,7 +1,7 @@
 // components/ChatRoom.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
-import { ChatMessage, ChatRoomInfo, ChatRoomProps } from '../types/chat';
+import { ChatMessage, ChatRoomInfo, ChatRoomProps, MessageType } from '../types/chat';
 import { CHAT_API, WS_URL } from '../config/apiConfig';
 
 const ChatRoom: React.FC<ChatRoomProps> = ({
@@ -15,22 +15,14 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
     const [isConnected, setIsConnected] = useState(false);
     const [roomInfo, setRoomInfo] = useState<ChatRoomInfo>(initialRoomInfo);
     const [error, setError] = useState<string | null>(null);
+    const [isExiting, setIsExiting] = useState(false);
     const clientRef = useRef<Client | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const [isExiting, setIsExiting] = useState(false);
 
     // 방 정보 주기적 업데이트
     const fetchRoomInfo = async () => {
         try {
-            const response = await fetch(CHAT_API.getRoom(roomId), {
-                headers: {
-                    'Accept': 'application/json'
-                }
-            });
-            if (!response.ok) {
-                throw new Error('방 정보를 불러오는데 실패했습니다.');
-            }
-            const data = await response.json();
+            const data = await CHAT_API.getRoom(roomId);
             setRoomInfo(data);
             setError(null);
         } catch (error) {
@@ -38,39 +30,56 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
             setError('방 정보를 불러오는데 실패했습니다.');
         }
     };
-
-    // WebSocket 연결 설정
     useEffect(() => {
+        console.log('Initializing WebSocket connection...');
+
         const client = new Client({
             brokerURL: WS_URL,
-            debug: function (str) {
-                console.log(str);
-            },
             reconnectDelay: 5000,
             heartbeatIncoming: 4000,
             heartbeatOutgoing: 4000,
-            onConnect: async () => {
+            debug: (str) => console.log('STOMP:', str),
+            onConnect: () => {
                 console.log('Connected to STOMP');
                 setIsConnected(true);
                 setError(null);
 
-                // 채팅방 구독
-                client.subscribe(`/sub/chat/room/${roomId}`, (message) => {
-                    const receivedMessage: ChatMessage = JSON.parse(message.body);
-                    setMessages(prev => [...prev, receivedMessage]);
-                });
+                try {
+                    // 채팅방 구독
+                    client.subscribe(`/sub/chat/room/${roomId}`, (message) => {
+                        console.log('Raw message received:', message);
+                        try {
+                            const receivedMessage: ChatMessage = JSON.parse(message.body);
+                            console.log('Parsed message:', receivedMessage);
+                            setMessages(prev => [...prev, receivedMessage]);
+                        } catch (error) {
+                            console.error('Message parsing error:', error);
+                            setError('메시지 처리 중 오류가 발생했습니다.');
+                        }
+                    });
 
-                // 입장 메시지 전송
-                client.publish({
-                    destination: '/pub/chat/join',
-                    body: JSON.stringify({
-                        type: 'JOIN',
+                    // 입장 메시지 전송
+                    const joinMessage = {
+                        type: MessageType.JOIN,
                         roomId,
                         sender: username,
-                        message: `${username}님이 입장하셨습니다.`,
+                        message: '',
                         timestamp: new Date().toISOString()
-                    })
-                });
+                    };
+
+                    console.log('Sending join message:', joinMessage);
+                    client.publish({
+                        destination: '/pub/chat/message',
+                        body: JSON.stringify(joinMessage)
+                    });
+                } catch (error) {
+                    console.error('STOMP operation error:', error);
+                    setError('채팅방 연결 중 오류가 발생했습니다.');
+                }
+            },
+            onStompError: (frame) => {
+                console.error('STOMP error:', frame);
+                setError('채팅 연결에 실패했습니다.');
             },
             onDisconnect: () => {
                 console.log('Disconnected from STOMP');
@@ -78,17 +87,16 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
                 if (!isExiting) {
                     setError('채팅 서버와의 연결이 끊어졌습니다.');
                 }
-            },
-            onStompError: (frame) => {
-                console.error('STOMP error:', frame);
-                setError('채팅 연결에 실패했습니다.');
             }
         });
 
+        console.log('Activating STOMP client...');
         client.activate();
         clientRef.current = client;
 
+        // 클린업 함수
         return () => {
+            console.log('Cleaning up WebSocket connection...');
             if (client.active && !isExiting) {
                 handleExit();
             }
@@ -103,24 +111,26 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
     // 방 정보 갱신
     useEffect(() => {
         if (isConnected) {
+            fetchRoomInfo();
             const interval = setInterval(fetchRoomInfo, 5000);
             return () => clearInterval(interval);
         }
-    }, [isConnected, roomId]);
+    }, [isConnected]);
 
     const handleSendMessage = () => {
         if (!messageInput.trim() || !clientRef.current || !isConnected) return;
 
         const chatMessage: ChatMessage = {
-            type: 'TALK',
+            type: MessageType.CHAT,
             roomId,
             sender: username,
             message: messageInput,
             timestamp: new Date().toISOString()
         };
 
+        console.log('Sending chat message:', chatMessage);
         clientRef.current.publish({
-            destination: '/pub/chat/sendMessage',
+            destination: '/pub/chat/message',
             body: JSON.stringify(chatMessage)
         });
 
@@ -129,46 +139,35 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
 
     const handleExit = async () => {
         try {
+            console.log('Exiting room...');
             setIsExiting(true);
 
-            // 1. WebSocket 연결 종료 메시지 전송
             if (clientRef.current?.active) {
+                const leaveMessage = {
+                    type: MessageType.LEAVE,
+                    roomId,
+                    sender: username,
+                    message: '',
+                    timestamp: new Date().toISOString()
+                };
+
+                console.log('Sending leave message:', leaveMessage);
                 clientRef.current.publish({
-                    destination: '/pub/chat/leave',
-                    body: JSON.stringify({
-                        type: 'LEAVE',
-                        roomId,
-                        sender: username,
-                        message: `${username}님이 퇴장하셨습니다.`,
-                        timestamp: new Date().toISOString()
-                    })
+                    destination: '/pub/chat/message',
+                    body: JSON.stringify(leaveMessage)
                 });
+
                 clientRef.current.deactivate();
-            }
-
-            // 2. REST API를 통한 참여자 제거
-            const response = await fetch(CHAT_API.removeUserFromRoom(roomId), {
-                method: 'DELETE',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ userUUID: username })
-            });
-
-            if (!response.ok) {
-                throw new Error('퇴장 처리에 실패했습니다.');
             }
 
             onExit();
         } catch (error) {
-            console.error('Failed to exit room:', error);
+            console.error('Exit error:', error);
             setError('퇴장 처리에 실패했습니다.');
         } finally {
             setIsExiting(false);
         }
     };
-
-    // 엔터 키로 메시지 전송
     const handleKeyPress = (event: React.KeyboardEvent) => {
         if (event.key === 'Enter' && !event.shiftKey) {
             event.preventDefault();
@@ -221,12 +220,22 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
                                     : msg.sender === username
                                         ? 'bg-blue-500 text-white'
                                         : 'bg-white text-gray-800'
-                            }`}
+                            } shadow`}
                         >
                             {msg.type !== 'JOIN' && msg.type !== 'LEAVE' && (
-                                <p className="text-xs mb-1">{msg.sender}</p>
+                                <p className="text-xs mb-1">
+                                    {msg.sender}
+                                </p>
                             )}
-                            <p className="break-words">{msg.message}</p>
+                            <p className="break-words">
+                                {msg.message || (
+                                    msg.type === 'JOIN'
+                                        ? `${msg.sender}님이 입장하셨습니다.`
+                                        : msg.type === 'LEAVE'
+                                            ? `${msg.sender}님이 퇴장하셨습니다.`
+                                            : msg.message
+                                )}
+                            </p>
                             <p className="text-xs text-right mt-1 opacity-70">
                                 {new Date(msg.timestamp).toLocaleTimeString()}
                             </p>
