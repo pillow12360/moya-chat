@@ -2,8 +2,8 @@
 import axios from 'axios';
 import { ChatRoomInfo, CreateRoomRequest } from '../types/chat';
 
-export const BASE_URL = 'http://192.168.0.105:8080';
-export const WS_URL = 'ws://192.168.0.105:8080/ws-stomp';
+export const BASE_URL = 'https://api.moyastudy.com';
+export const WS_URL = 'wss://api.moyastudy.com/ws-stomp';
 
 // axios 인스턴스 생성
 export const axiosInstance = axios.create({
