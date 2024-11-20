@@ -11,6 +11,7 @@ export default defineConfig({
     },
   },
   server: {
+    host: true, // 외부 접근 허용 설정 추가
     port: 3000,
     proxy: {
       '/api': {
