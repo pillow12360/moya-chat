@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Client } from '@stomp/stompjs';
 import { ChatMessage, ChatRoomInfo, ChatRoomProps, MessageType } from '../types/chat';
 import { CHAT_API, WS_URL } from '../config/apiConfig';
+import { Users, LogOut, Send, AlertCircle } from 'lucide-react';
+
 
 const ChatRoom: React.FC<ChatRoomProps> = ({
                                                roomId,
@@ -175,37 +177,52 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
         }
     };
 
+    const formatRoomName = (name: string) => {
+        try {
+            return name.replace(/[{"}]/g, '').split(':')[1]?.trim() || name;
+        } catch {
+            return name;
+        }
+    };
     return (
-        <div className="flex flex-col h-screen bg-gray-100">
+        <div className="flex flex-col h-screen bg-gray-50">
             {error && (
-                <div className="p-4 bg-red-100 text-red-700">
-                    {error}
+                <div className="p-4 bg-red-50 border-l-4 border-red-500 flex items-center space-x-2">
+                    <AlertCircle className="text-red-500" size={20} />
+                    <span className="text-red-700">{error}</span>
                 </div>
             )}
 
             {/* 채팅방 헤더 */}
-            <div className="bg-white shadow-md p-4">
+            <div className="bg-white shadow-lg p-6">
                 <div className="flex justify-between items-center">
-                    <div>
-                        <h1 className="text-xl font-bold">
-                            {roomInfo.roomName}
+                    <div className="space-y-1">
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            {formatRoomName(roomInfo.roomName)}
                         </h1>
-                        <p className="text-sm text-gray-500">
-                            {isConnected ? `참여자 ${roomInfo.userCount}명` : '연결 중...'}
-                        </p>
+                        <div className="flex items-center space-x-2 text-gray-600">
+                            <Users size={18} />
+                            <p className="text-sm">
+                                {isConnected ? `참여자 ${roomInfo.userCount}명` : '연결 중...'}
+                            </p>
+                        </div>
                     </div>
                     <button
                         onClick={handleExit}
-                        className="px-4 py-2 text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                        className="px-6 py-2.5 text-white bg-red-500 hover:bg-red-600
+                                 rounded-xl transition-all duration-200 flex items-center space-x-2
+                                 hover:shadow-md disabled:bg-gray-400 disabled:cursor-not-allowed
+                                 transform hover:-translate-y-0.5"
                         disabled={isExiting}
                     >
-                        {isExiting ? '나가는 중...' : '나가기'}
+                        <LogOut size={18} />
+                        <span>{isExiting ? '나가는 중...' : '나가기'}</span>
                     </button>
                 </div>
             </div>
 
             {/* 메시지 목록 */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
                 {messages.map((msg, index) => (
                     <div
                         key={index}
@@ -214,29 +231,31 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
                         }`}
                     >
                         <div
-                            className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                                msg.type === 'JOIN' || msg.type === 'LEAVE'
-                                    ? 'bg-gray-200 text-gray-600 mx-auto'
+                            className={`max-w-xs lg:max-w-md rounded-2xl shadow-md ${
+                                msg.type === MessageType.JOIN || msg.type === MessageType.LEAVE
+                                    ? 'bg-gray-100 text-gray-600 mx-auto px-6 py-2'
                                     : msg.sender === username
-                                        ? 'bg-blue-500 text-white'
-                                        : 'bg-white text-gray-800'
-                            } shadow`}
+                                        ? 'bg-blue-500 text-white px-5 py-3'
+                                        : 'bg-white text-gray-800 px-5 py-3'
+                            }`}
                         >
-                            {msg.type !== 'JOIN' && msg.type !== 'LEAVE' && (
-                                <p className="text-xs mb-1">
+                            {msg.type !== MessageType.JOIN && msg.type !== MessageType.LEAVE && (
+                                <p className="text-xs mb-1 font-medium opacity-80">
                                     {msg.sender}
                                 </p>
                             )}
-                            <p className="break-words">
+                            <p className="break-words text-sm lg:text-base">
                                 {msg.message || (
-                                    msg.type === 'JOIN'
+                                    msg.type === MessageType.JOIN
                                         ? `${msg.sender}님이 입장하셨습니다.`
-                                        : msg.type === 'LEAVE'
+                                        : msg.type === MessageType.LEAVE
                                             ? `${msg.sender}님이 퇴장하셨습니다.`
                                             : msg.message
                                 )}
                             </p>
-                            <p className="text-xs text-right mt-1 opacity-70">
+                            <p className={`text-xs mt-1 ${
+                                msg.sender === username ? 'text-blue-100' : 'text-gray-400'
+                            }`}>
                                 {new Date(msg.timestamp).toLocaleTimeString()}
                             </p>
                         </div>
@@ -246,24 +265,29 @@ const ChatRoom: React.FC<ChatRoomProps> = ({
             </div>
 
             {/* 메시지 입력 */}
-            <div className="bg-white p-4 shadow-lg">
-                <div className="flex space-x-2">
+            <div className="bg-white p-6 shadow-lg">
+                <div className="flex space-x-3">
                     <input
                         type="text"
                         value={messageInput}
                         onChange={(e) => setMessageInput(e.target.value)}
                         onKeyPress={handleKeyPress}
                         placeholder="메시지를 입력하세요..."
-                        className="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="flex-1 border border-gray-200 rounded-xl px-5 py-3
+                                 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
+                                 transition-all duration-200"
                         disabled={!isConnected}
                     />
                     <button
                         onClick={handleSendMessage}
                         disabled={!isConnected || !messageInput.trim()}
-                        className="bg-blue-500 text-white px-6 py-2 rounded-lg hover:bg-blue-600 transition-colors
-                                 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                        className="bg-blue-500 text-white px-6 py-3 rounded-xl hover:bg-blue-600
+                                 transition-all duration-200 flex items-center space-x-2
+                                 disabled:bg-gray-400 disabled:cursor-not-allowed
+                                 hover:shadow-md transform hover:-translate-y-0.5"
                     >
-                        전송
+                        <Send size={18} />
+                        <span>전송</span>
                     </button>
                 </div>
             </div>
